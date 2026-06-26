@@ -54,4 +54,32 @@ func main() {
 	if x == y || x ==z || z == y {
 		fmt.Println("Aniqlanmadi:")
 	}
+
+	if x == y && x == z {
+		fmt.Println("sonlar teng")
+		return
+	}
+
+	min := x
+	max := x
+
+	if y > max {
+		max = y
+	}
+
+	if z > max {
+		max = z
+	}
+
+	if y < min {
+		min = y
+	}
+
+	if z < min {
+		min = z
+	}
+
+	fmt.Println("MAX: ", max)
+	fmt.Println("MIN: ", min)
 }	
+

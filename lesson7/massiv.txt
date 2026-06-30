@@ -1,0 +1,5 @@
+Massiv qat'iy uzunlikdagi va bir nechta bitta ma'lumot turdagi elementlarni 
+o'z ichiga oluvchi ma'lumot turi
+Misol: 
+Data Type: Integer -> 1, 5, -10, 0, 23
+           String  -> "hello", "apple"

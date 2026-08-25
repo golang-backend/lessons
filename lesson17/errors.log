@@ -1,0 +1,5 @@
+EOF
+EOF
+stat test.txt: no such file or directory
+open text2.txt: no such file or directory
+open text2.txt: no such file or directory

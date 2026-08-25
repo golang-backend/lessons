@@ -1,0 +1,14 @@
+[
+   {
+      "title": "Iphone",
+      "price": 1200,
+      "qty": 12,
+      "is_active": true
+   },
+   {
+      "title": "Samsung S23",
+      "price": 1000,
+      "qty": 5,
+      "is_active": true
+   }
+]

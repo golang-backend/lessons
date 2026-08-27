@@ -1,0 +1,16 @@
+[
+   {
+      "id": 1,
+      "name": "Temur",
+      "age": 20,
+      "email": "umidjon@gmail.com",
+      "created": "2026-08-27T09:13:16.852008332+05:00"
+   },
+   {
+      "id": 2,
+      "name": "Jasur",
+      "age": 24,
+      "email": "jasur@gmail.com",
+      "created": "2026-08-27T09:27:40.168496077+05:00"
+   }
+]

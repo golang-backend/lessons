@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"strconv"
@@ -44,175 +43,167 @@ func main() {
 
 func createUser(w http.ResponseWriter, r *http.Request) {
 	var user User
-	err := json.NewDecoder(r.Body).Decode(&user)
-	if err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
-		return
-	}
-	user.Created = time.Now()
-	err = writeUser(user)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	w.Header().Set("Content-type", "application/json")
+	users, err := readUsers()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	user.Id = len(users) + 1
+	user.Created = time.Now()
+
+	users = append(users, user)
+
+	if err := saveUsers(users); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]any{
-		"msg":  "User Created",
-		"user": user,
-	})
+	json.NewEncoder(w).Encode(user)
 }
 
 func getUsers(w http.ResponseWriter, r *http.Request) {
+	Middleware(r)
 	users, err := readUsers()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-type", "application/json")
-	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(users)
 }
 
+func Middleware(r *http.Request) {
+	fmt.Println("Method: ", r.Method)
+	fmt.Println("Path: ", r.URL)
+	fmt.Println("Time: ", time.Now().Format(time.DateTime))
+}
+
 func updateUser(w http.ResponseWriter, r *http.Request) {
-	userIdStr := r.PathValue("id")
-	userId, err := strconv.Atoi(userIdStr)
+	id, err := strconv.Atoi(r.PathValue("id"))
 	if err != nil {
-		http.Error(w, "Id must be number", http.StatusBadRequest)
+		http.Error(w, "Invalid id", http.StatusBadRequest)
 		return
 	}
-	var user User
-	err = json.NewDecoder(r.Body).Decode(&user)
-	if err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+
+	var req User
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
+
 	users, err := readUsers()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	for i, _ := range users {
-		if users[i].Id == userId {
-			users[i].Name = user.Name
-			users[i].Email = user.Email
-			users[i].Age = user.Age
+
+	found := false
+
+	for i := range users {
+		if users[i].Id == id {
+			if req.Name != "" {
+				users[i].Name = req.Name
+			}
+			if req.Email != "" {
+				users[i].Email = req.Email
+			}
+			if req.Age != 0 {
+				users[i].Age = req.Age
+			}
+			found = true
+			break
 		}
 	}
-	err = writeUsers(users)
+
+	if !found {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	if err := saveUsers(users); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "User updated",
+	})
+}
+
+func deleteUser(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "Invalid id", http.StatusBadRequest)
+		return
+	}
+
+	users, err := readUsers()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]any{
-		"msg":  "User Updated",
-		"user": user,
-	})
 
-}
+	var result []User
+	found := false
 
-func deleteUser(w http.ResponseWriter, r *http.Request) {
-	
-}
-
-func writeUser(user User) error {
-	file, err := os.OpenFile("users.json", os.O_CREATE|os.O_RDWR, 0644)
-	if err != nil {
-		fmt.Printf("could not open file: %v\n", err)
-		return err
-	}
-	defer file.Close()
-
-	userByte, err := io.ReadAll(file)
-	if err != nil {
-		fmt.Printf("could not read file: %v\n", err)
-		return err
-	}
-	users := []User{}
-	if len(userByte) > 0 {
-		err = json.Unmarshal(userByte, &users)
-		if err != nil {
-			fmt.Printf("could not unmarshal users: %v\n", err)
-			return err
+	for _, user := range users {
+		if user.Id == id {
+			found = true
+			continue
 		}
+		result = append(result, user)
 	}
 
-	users = append(users, user)
-	usersM, err := json.MarshalIndent(users, "", "   ")
-	if err != nil {
-		fmt.Printf("could not marshal users: %v\n", err)
-		return err
+	if !found {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
 	}
 
-	if err = file.Truncate(0); err != nil {
-		fmt.Printf("could not truncate users.json: %v\n", err)
-		return err
-	}
-	if _, err = file.Seek(0, 0); err != nil {
-		fmt.Printf("could not seek users.json: %v\n", err)
-		return err
+	if err := saveUsers(result); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	_, err = file.Write(usersM)
-	if err != nil {
-		fmt.Printf("could not write users: %v\n", err)
-		return err
-	}
-	return nil
+	w.WriteHeader(http.StatusNoContent)
 }
 
-func writeUsers(users []User) error {
-	file, err := os.OpenFile("users.json", os.O_RDWR, 0644)
+func saveUsers(users []User) error {
+	data, err := json.MarshalIndent(users, "", "  ")
 	if err != nil {
-		fmt.Printf("could not open users json: %v\n", err)
 		return err
 	}
-	defer file.Close()
-	usersByte, err := json.MarshalIndent(users, "", "   ")
-	if err != nil {
-		fmt.Printf("could not marshal users: %v\n", err)
-		return err
-	}
-	if err = file.Truncate(0); err != nil {
-		fmt.Printf("could not truncate users.json: %v\n", err)
-		return err
-	}
-	if _, err = file.Seek(0, 0); err != nil {
-		fmt.Printf("could not seek users.json: %v\n", err)
-		return err
-	}
-	_, err = file.Write(usersByte)
-	if err != nil {
-		fmt.Printf("could not write users: %v\n", err)
-		return err
-	}
-	return nil
+
+	return os.WriteFile("users.json", data, 0644)
 }
 
 func readUsers() ([]User, error) {
-	file, err := os.Open("users.json")
-	if err != nil {
-		fmt.Printf("could not open users.json: %v\n", err)
-		return []User{}, err
-	}
-	defer file.Close()
-	usersByte, err := io.ReadAll(file)
-	if err != nil {
-		fmt.Printf("could not read users.json: %v\n", err)
-		return []User{}, err
-	}
-	if len(usersByte) == 0 {
+	data, err := os.ReadFile("users.json")
+
+	if os.IsNotExist(err) {
 		return []User{}, nil
 	}
-	var users []User
-	err = json.Unmarshal(usersByte, &users)
+
 	if err != nil {
-		fmt.Printf("could not unmarshal users.json: %v\n", err)
-		return []User{}, err
+		return nil, err
+	}
+
+	if len(data) == 0 {
+		return []User{}, nil
+	}
+
+	var users []User
+	if err := json.Unmarshal(data, &users); err != nil {
+		return nil, err
 	}
 
 	return users, nil
